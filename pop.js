@@ -3,12 +3,14 @@
 var POP = function(params) {
     var that = this;
     that.configs = {
-        controls : true,
-        editor   : true
+        controls   : true,
+        editorMode : true
     };
     that.three = {};
     that.container = (params && params.container) || document.body;
     that.elements = [];
+    that.worlds = params.worlds || [];
+    that.selectedWorld = params.selectedWorld || 0;
 
     that.events = {
         resize            : function() {
@@ -60,27 +62,54 @@ var POP = function(params) {
             that.three.controls.zoomSpeed = 0;
         }
 
-        if(that.configs.editor) {
-            that.initEditor();
-        }
-
         that.addPopElements();
         that.attachingTheEvents();
         that.animate();
     };
-    that.initEditor = function() {
+    that.createWorld = function(options, cb) {
+        options.color = options.color || 'blue';
+        options.depthTest = false;
 
-        // -- Showing the sphere with the frame -- //
-        var sphereFrameMesh = new THREE.Mesh(
-            new THREE.SphereGeometry(800, 50, 25),
-            new THREE.MeshBasicMaterial()
+        var world = new THREE.Mesh(
+            new THREE.SphereGeometry(options.size, 100, 50),
+            new THREE.MeshBasicMaterial(options)
         );
-        var sphereFrame = new THREE.EdgesHelper(sphereFrameMesh, 0x0000ff);
-        sphereFrame.material.linewidth = 2;
-        that.three.sceneGL.add(sphereFrame);
+        var sphereFrame;
+        world.options = options;
+        world.material.side = THREE.DoubleSide;
 
+        if(that.configs.editorMode) {
+            sphereFrame = new THREE.EdgesHelper(world, options.color);
+            sphereFrame.material.linewidth = 2;
+            sphereFrame.visible = false;
+            sphereFrame.options = options;
+        }
+        that.three.sceneGL.add(sphereFrame || world);
+        that.worlds.push(sphereFrame || world);
+
+        that.selectWorld(that.worlds().length - 1);
+
+        cb && cb();
     };
-    that.addPopElements = function() {
+    that.selectWorld = function(index) {
+        if(params.selectedWorld)
+            params.selectedWorld(index);
+        else
+            that.selectedWorld = index;
+
+        that.worlds().forEach(function(item, i) {
+            if(i == index) {
+                item.traverse(function(object) {
+                    object.visible = true;
+                });
+            } else {
+                item.traverse(function(object) {
+                    object.visible = false;
+                });
+            }
+        });
+    };
+    that.addPopElements = function(cb) {
         var popElements = document.querySelectorAll('.pop-element');
 
         for(var i = 0; i < popElements.length; i++) {
@@ -94,6 +123,7 @@ var POP = function(params) {
                 });
             }
         }
+        cb && cb();
     };
     that.attachingTheEvents = function() {
         window.addEventListener('resize', that.events.resize);
