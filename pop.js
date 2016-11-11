@@ -11,6 +11,7 @@ var POP = function(params) {
     that.elements = [];
     that.worlds = params.worlds || [];
     that.selectedWorld = params.selectedWorld || 0;
+    that.cursorCoords = {};
 
     that.events = {
         resize            : function() {
@@ -56,6 +57,9 @@ var POP = function(params) {
         that.three.rendererGL = rendererGL;
         that.three.rendererCSS = rendererCSS;
 
+        that.three.raycaster = new THREE.Raycaster();
+        that.three.mouse = new THREE.Vector2();
+
         // -- Adding the orbit controls -- //
         if(that.configs.controls) {
             that.three.controls = new THREE.OrbitControls(that.three.camera, that.three.rendererGL.domElement);
@@ -72,15 +76,18 @@ var POP = function(params) {
 
         var world = new THREE.Mesh(
             new THREE.SphereGeometry(options.size, 100, 50),
-            new THREE.MeshBasicMaterial(options)
+            new THREE.MeshBasicMaterial()
         );
         var sphereFrame;
         world.options = options;
         world.material.side = THREE.DoubleSide;
+        that.three.sceneGL.add(world);
 
         if(that.configs.editorMode) {
-            sphereFrame = new THREE.EdgesHelper(world, options.color);
-            sphereFrame.material.linewidth = 2;
+            var sphereFrameGeo = new THREE.EdgesGeometry( world.geometry );
+            var sphereFrameMat = new THREE.LineBasicMaterial( { color: options.color, linewidth: 2 } );
+            sphereFrame = new THREE.LineSegments( sphereFrameGeo, sphereFrameMat );
+
             sphereFrame.visible = false;
             sphereFrame.options = options;
         }
@@ -116,6 +123,7 @@ var POP = function(params) {
             if(that.elements.indexOf(popElements[i]) < 0) {
                 that.elements.push(popElements[i]);
                 that.addHtml({
+                    world   : popElements[i].getAttribute('world'),
                     x       : popElements[i].getAttribute('x') || '0',
                     y       : popElements[i].getAttribute('y') || '0',
                     z       : popElements[i].getAttribute('z') || '0',
@@ -125,10 +133,40 @@ var POP = function(params) {
         }
         cb && cb();
     };
+    that.addPopElement = function(element, cb){
+        that.elements.push(element);
+        that.addHtml({
+            world   : element.getAttribute('world'),
+            x       : element.getAttribute('x') || '0',
+            y       : element.getAttribute('y') || '0',
+            z       : element.getAttribute('z') || '0',
+            content : element
+        });
+    };
     that.attachingTheEvents = function() {
         window.addEventListener('resize', that.events.resize);
         that.three.rendererGL.domElement.addEventListener('mousedown', that.events.addMovingClass);
+        that.three.rendererGL.domElement.addEventListener('mousemove', function(e){
+            that.cursorCoords = that.getCoordsFromWorld(e);
+        });
         that.three.rendererGL.domElement.addEventListener('mouseup', that.events.removeMovingClass);
+    };
+    that.getCoordsFromWorld = function(event) {
+        event.preventDefault();
+        var point;
+
+        that.three.mouse.x = ( event.clientX / that.three.rendererGL.domElement.clientWidth ) * 2 - 1;
+        that.three.mouse.y = - ( event.clientY / that.three.rendererGL.domElement.clientHeight ) * 2 + 1;
+
+        that.three.raycaster.setFromCamera( that.three.mouse, that.three.camera );
+
+        var intersects = that.three.raycaster.intersectObjects( that.three.sceneGL.children );
+
+        if ( intersects.length > 0 ) {
+            //if(!intersects[0].face) intersects[0] = intersects[1];
+            point = intersects[0].point;
+            return point;
+        }
     };
     that.animate = function() {
         requestAnimationFrame(that.animate);
