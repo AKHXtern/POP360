@@ -22,10 +22,10 @@ var POP = function(params) {
             that.three.rendererCSS.setSize(window.innerWidth, window.innerHeight);
         },
         addMovingClass    : function() {
-            document.body.className = 'pop-moving';
+            document.body.setAttribute('move', 'true');
         },
         removeMovingClass : function() {
-            document.body.className = '';
+            document.body.removeAttribute('move');
         }
     };
 
@@ -76,11 +76,12 @@ var POP = function(params) {
 
         var world = new THREE.Mesh(
             new THREE.SphereGeometry(options.size, 100, 50),
-            new THREE.MeshBasicMaterial()
+            new THREE.MeshBasicMaterial(that.configs.editorMode ? {} : options)
         );
         var sphereFrame;
         world.options = options;
         world.material.side = THREE.DoubleSide;
+        world.visible = false;
         that.three.sceneGL.add(world);
 
         if(that.configs.editorMode) {
@@ -89,6 +90,7 @@ var POP = function(params) {
             sphereFrame = new THREE.LineSegments( sphereFrameGeo, sphereFrameMat );
 
             sphereFrame.visible = false;
+            sphereFrame.world = world;
             sphereFrame.options = options;
         }
         that.three.sceneGL.add(sphereFrame || world);
@@ -106,47 +108,52 @@ var POP = function(params) {
 
         that.worlds().forEach(function(item, i) {
             if(i == index) {
-                item.traverse(function(object) {
-                    object.visible = true;
-                });
+                if(!item.world) item.world = {};
+
+                item.visible = item.world.visible = true;
             } else {
-                item.traverse(function(object) {
-                    object.visible = false;
-                });
+                if(!item.world) item.world = {};
+
+                item.visible = item.world.visible = false;
             }
         });
     };
     that.addPopElements = function(cb) {
         var popElements = document.querySelectorAll('.pop-element');
-
         for(var i = 0; i < popElements.length; i++) {
             if(that.elements.indexOf(popElements[i]) < 0) {
-                that.elements.push(popElements[i]);
-                that.addHtml({
+                that.addPopElement(popElements[i], {
                     world   : popElements[i].getAttribute('world'),
-                    x       : popElements[i].getAttribute('x') || '0',
-                    y       : popElements[i].getAttribute('y') || '0',
-                    z       : popElements[i].getAttribute('z') || '0',
-                    content : popElements[i]
+                    x       : popElements[i].getAttribute('x'),
+                    y       : popElements[i].getAttribute('y'),
+                    z       : popElements[i].getAttribute('z')
                 });
             }
         }
         cb && cb();
     };
-    that.addPopElement = function(element, cb){
-        that.elements.push(element);
+    that.addPopElement = function(element, option, cb){
+        if(option.world === false) {
+            console.error("The 'world' attribute is required for the element.")
+            return;
+        }
+
         that.addHtml({
-            world   : element.getAttribute('world'),
-            x       : element.getAttribute('x') || '0',
-            y       : element.getAttribute('y') || '0',
-            z       : element.getAttribute('z') || '0',
+            world   : option.world,
+            x       : option.x || 0,
+            y       : option.y || 0,
+            z       : option.z || 0,
             content : element
         });
+        cb && cb();
     };
     that.attachingTheEvents = function() {
         window.addEventListener('resize', that.events.resize);
         that.three.rendererGL.domElement.addEventListener('mousedown', that.events.addMovingClass);
         that.three.rendererGL.domElement.addEventListener('mousemove', function(e){
+            that.cursorCoords = that.getCoordsFromWorld(e);
+        });
+        that.three.rendererGL.domElement.addEventListener('dragover', function(e){
             that.cursorCoords = that.getCoordsFromWorld(e);
         });
         that.three.rendererGL.domElement.addEventListener('mouseup', that.events.removeMovingClass);
@@ -184,12 +191,23 @@ POP.prototype.addHtml = function(params) {
     var that = this,
         htmlObject = new THREE.CSS3DObject(params.content);
 
+    params.content.setAttribute('world', params.world);
+    params.content.setAttribute('x', params.x);
+    params.content.setAttribute('y', params.y);
+    params.content.setAttribute('z', params.z);
+
     htmlObject.position.z = params.z || 0;
     htmlObject.position.y = params.y || 0;
     htmlObject.position.x = params.x || 0;
 
+    htmlObject.element = params.content;
+    params.content.object = htmlObject;
+
+    htmlObject.lookAt(that.three.camera.position);
+
     // -- Adding the HTML Content to scene -- //
     that.three.sceneCSS.add(htmlObject);
+    that.elements.push(htmlObject);
 };
 POP.prototype.add3dObject = function(params) {
     // -- This function supports .obj, .js, .collada model formats -- //
