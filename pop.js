@@ -6,6 +6,7 @@ var POP = function(params) {
         controls   : true,
         editorMode : true
     };
+    that.mode = 'desktop'; // or 'vr'
     that.three = {};
     that.container = (params && params.container) || document.body;
     that.elements = [];
@@ -20,6 +21,10 @@ var POP = function(params) {
 
             that.three.rendererGL.setSize(window.innerWidth, window.innerHeight);
             that.three.rendererCSS.setSize(window.innerWidth, window.innerHeight);
+
+            if(that.mode == 'vr') {
+                that.effect && that.effect.setSize( window.innerWidth, window.innerHeight );
+            }
         },
         addMovingClass    : function() {
             document.body.setAttribute('move', 'true');
@@ -38,16 +43,25 @@ var POP = function(params) {
         that.three.camera.position.z = 300;
 
         // -- Defining the WebGL and CSS3D Renderers -- //
-        var rendererCSS = new THREE.CSS3DRenderer();
+        var rendererCSS = null;
+
+        rendererCSS = that.mode == 'vr' ? new THREE.CSS3DStereoRenderer() : new THREE.CSS3DRenderer();
         rendererCSS.setSize(window.innerWidth, window.innerHeight);
-        rendererCSS.domElement.id = 'rendererCSS';
+        rendererCSS.domElement.id = 'renderer-css';
 
         var rendererGL = new THREE.WebGLRenderer({
             alpha     : true,
             antialias : true
         });
         rendererGL.setClearColor(0x00ff00, 0.0);
-        rendererGL.domElement.id = 'rendererGL';
+        rendererGL.domElement.id = 'renderer-gl';
+
+        if(that.mode == 'vr') {
+            var effect = new THREE.StereoEffect( rendererGL );
+            effect.setSize( window.innerWidth, window.innerHeight );
+
+            that.effect = effect;
+        }
 
         rendererGL.setSize(window.innerWidth, window.innerHeight);
         rendererCSS.domElement.appendChild(rendererGL.domElement);
@@ -118,6 +132,19 @@ var POP = function(params) {
         else
             that.selectedWorld = index;
 
+        debugger;
+
+        var helements = document.querySelectorAll('.pop-element:not([world="' + index + '"])'), // Elements I should hide
+            selements = document.querySelectorAll('.pop-element[world="' + index + '"]'); // Elements I should show
+
+            helements.forEach(function(element){
+                element.style.display = 'none';
+            });
+
+            selements.forEach(function(element){
+                element.style.display = 'block';
+            });
+
         that.worlds().forEach(function(item, i) {
             if(i == index) {
                 if(!item.world) item.world = {};
@@ -182,17 +209,54 @@ var POP = function(params) {
         var intersects = that.three.raycaster.intersectObjects(that.three.sceneGL.children);
 
         if(intersects.length > 0) {
-            //if(!intersects[0].face) intersects[0] = intersects[1];
+            if(!intersects[0].face) intersects[0] = intersects[1];
 
             point = intersects[0].point;
             return point;
         }
+    };
+    that.changeMode = function(mode) {
+        var that = this;
+
+        if(mode){
+            that.mode = mode;
+        } else {
+            that.mode = that.mode == 'vr' ? 'desktop' : 'vr';
+        }
+
+        if(that.mode == 'vr' && !that.effect) {
+            var effect = new THREE.StereoEffect( that.three.rendererGL );
+            effect.setSize( window.innerWidth, window.innerHeight );
+
+            that.effect = effect;
+        }
+
+        that.rerender();
+        that.events.resize();
+    };
+    that.rerender = function(){
+
+        document.body.removeChild(document.querySelector('#renderer-css'));
+
+        that.three.rendererCSS = that.mode == 'vr' ? new THREE.CSS3DStereoRenderer() : new THREE.CSS3DRenderer();
+        that.three.rendererCSS.setSize(window.innerWidth, window.innerHeight);
+        that.three.rendererCSS.domElement.id = 'renderer-css';
+
+        that.three.rendererCSS.domElement.appendChild(that.three.rendererGL.domElement);
+
+        that.container.appendChild(that.three.rendererCSS.domElement);
+
+        that.selectWorld(that.selectedWorld());
+
     };
     that.animate = function() {
         requestAnimationFrame(that.animate);
 
         that.three.rendererGL.render(that.three.sceneGL, that.three.camera);
         that.three.rendererCSS.render(that.three.sceneCSS, that.three.camera);
+
+        if(that.mode == 'vr')
+            that.effect && that.effect.render(that.three.sceneGL, that.three.camera);
 
         if(that.configs.controls)
             that.three.controls.update();
@@ -224,6 +288,6 @@ POP.prototype.addHtml = function(params) {
     that.elements.push(htmlObject);
 };
 POP.prototype.add3dObject = function(params) {
-    // -- This function supports .obj, .js, .collada model formats -- //
+    // :TODO -- This function supports .obj, .js, .collada model formats -- //
     var that = this;
 };
