@@ -34,6 +34,57 @@ var POP = function(params) {
         }
     };
 
+    that.saveImage = function(){
+
+        // This is experiment, fuck this shit
+
+        that.elements.forEach(function(element){
+            var copy = element.element;
+            var style = copy.getAttribute('style');
+
+            var x = copy.getAttribute('x'),
+                y = copy.getAttribute('y'),
+                z = copy.getAttribute('z'),
+                world = copy.getAttribute('world');
+
+            var W = copy.offsetWidth,
+                H = copy.offsetHeight;
+
+            if(world != that.selectedWorld()) return;
+
+            copy.removeAttribute('style');
+            html2canvas(copy, {
+              allowTaint: true,
+              logging: true,
+              onrendered: function(canvas) {
+
+                    var texture = new THREE.Texture(canvas);
+                    texture.needsUpdate = true;
+
+                    var geometry = new THREE.PlaneGeometry( W, H, 10, 10 );
+                    var material = new THREE.MeshBasicMaterial( {map: texture, side: THREE.DoubleSide, transparent: true} );
+                    var plane = new THREE.Mesh( geometry, material );
+                    that.three.sceneGL.add( plane );
+
+                    plane.position.set(x, y, z);
+                    plane.lookAt(that.three.camera.position);
+
+              },
+              width: W,
+              height: H
+            });
+            copy.setAttribute('style', style);
+
+        })
+
+        that.three.camera.position.z = 0;
+        setTimeout(function(){
+            that.three.equi.update( that.three.camera, that.three.sceneGL );
+
+            that.three.camera.position.z = 300;
+        }, 1000);
+    };
+
     that.init = function() {
         that.three.sceneGL = new THREE.Scene();
         that.three.sceneCSS = new THREE.Scene();
@@ -51,7 +102,8 @@ var POP = function(params) {
 
         var rendererGL = new THREE.WebGLRenderer({
             alpha     : true,
-            antialias : true
+            antialias : true,
+            preserveDrawingBuffer: true
         });
         rendererGL.setClearColor(0x00ff00, 0.0);
         rendererGL.domElement.id = 'renderer-gl';
@@ -62,6 +114,8 @@ var POP = function(params) {
 
             that.effect = effect;
         }
+
+        that.three.equi = new THREE.CubemapToEquirectangular( rendererGL, true );
 
         rendererGL.setSize(window.innerWidth, window.innerHeight);
         rendererCSS.domElement.appendChild(rendererGL.domElement);
@@ -131,8 +185,6 @@ var POP = function(params) {
             params.selectedWorld(index);
         else
             that.selectedWorld = index;
-
-        debugger;
 
         var helements = document.querySelectorAll('.pop-element:not([world="' + index + '"])'), // Elements I should hide
             selements = document.querySelectorAll('.pop-element[world="' + index + '"]'); // Elements I should show
