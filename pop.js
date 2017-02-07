@@ -38,8 +38,32 @@ var POP = function(params) {
 
         // This is experiment, fuck this shit
 
-        that.elements.forEach(function(element){
-            var copy = element.element;
+        var planes = [];
+
+        var capture = function(index){
+            if(index + 1 != that.elements.length) return;
+
+            var position = {
+                x: that.three.camera.position.x,
+                y: that.three.camera.position.y,
+                z: that.three.camera.position.z
+            }
+
+            that.three.camera.position.set(0, 0, 0);
+            that.three.equi.update( that.three.camera, that.three.sceneGL );
+
+            setTimeout(function(){
+                debugger;
+                that.three.camera.position.set(position.x, position.y, position.z)
+            }, 300);
+
+            planes.forEach(function(item){
+                that.three.sceneGL.remove(item);
+            });
+        }
+
+        that.elements.forEach(function(element, i){
+            var copy = element.element.cloneNode(true);;
             var style = copy.getAttribute('style');
 
             var x = copy.getAttribute('x'),
@@ -47,42 +71,45 @@ var POP = function(params) {
                 z = copy.getAttribute('z'),
                 world = copy.getAttribute('world');
 
-            var W = copy.offsetWidth,
-                H = copy.offsetHeight;
+            var W = element.element.offsetWidth,
+                H = element.element.offsetHeight;
 
             if(world != that.selectedWorld()) return;
 
             copy.removeAttribute('style');
+            document.body.appendChild(copy);
+
             html2canvas(copy, {
               allowTaint: true,
               logging: true,
-              onrendered: function(canvas) {
-
-                    var texture = new THREE.Texture(canvas);
-                    texture.needsUpdate = true;
-
-                    var geometry = new THREE.PlaneGeometry( W, H, 10, 10 );
-                    var material = new THREE.MeshBasicMaterial( {map: texture, side: THREE.DoubleSide, transparent: true} );
-                    var plane = new THREE.Mesh( geometry, material );
-                    that.three.sceneGL.add( plane );
-
-                    plane.position.set(x, y, z);
-                    plane.lookAt(that.three.camera.position);
-
-              },
               width: W,
               height: H
-            });
-            copy.setAttribute('style', style);
+          }).then(function(canvas){
+                var texture = new THREE.Texture(canvas);
+                texture.needsUpdate = true;
 
-        })
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.repeat.x = - 1;
 
-        that.three.camera.position.z = 0;
-        setTimeout(function(){
-            that.three.equi.update( that.three.camera, that.three.sceneGL );
+                var geometry = new THREE.PlaneGeometry( W, H );
+                var material = new THREE.MeshBasicMaterial( { map: texture, side: THREE.DoubleSide, transparent: true, alphaTest: 0.5 } );
+                var plane = new THREE.Mesh( geometry, material );
+                that.three.sceneGL.add( plane );
 
-            that.three.camera.position.z = 300;
-        }, 1000);
+                plane.position.set(x, y, z);
+                plane.lookAt(that.three.camera.position);
+
+                console.log(plane);
+
+                planes.push(plane);
+
+                document.body.removeChild(copy);
+
+                setTimeout(function(){
+                    capture(i);
+                }, 100);
+          });
+        });
     };
 
     that.init = function() {
@@ -91,7 +118,7 @@ var POP = function(params) {
 
         // -- Setting up the camera -- //
         that.three.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000000);
-        that.three.camera.position.z = 300;
+        that.three.camera.position.z = 1;
 
         // -- Defining the WebGL and CSS3D Renderers -- //
         var rendererCSS = null;
