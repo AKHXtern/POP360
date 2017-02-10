@@ -11,6 +11,7 @@ var POP = function(params) {
     that.container = (params && params.container) || document.body;
     that.elements = [];
     that.worlds = params.worlds || [];
+    that.objects = [];
     that.selectedWorld = params.selectedWorld || 0;
     that.cursorCoords = {};
 
@@ -34,6 +35,20 @@ var POP = function(params) {
         }
     };
 
+    that.utils = {
+        hasFormat: function(){
+            String.prototype.hasFormat = function(formats) {
+                var value = this.toString();
+
+                var filter = formats.filter(function(item){
+                    return value.indexOf(item) > -1;
+                });
+
+                return filter[0] && filter[0].replace('.', '') || false;
+            }
+        }
+    };
+
     that.saveImage = function(){
 
         // This is experiment, fuck this shit
@@ -47,7 +62,7 @@ var POP = function(params) {
                 x: that.three.camera.position.x,
                 y: that.three.camera.position.y,
                 z: that.three.camera.position.z
-            }
+            };
 
             that.three.camera.position.set(0, 0, 0);
             that.three.equi.update( that.three.camera, that.three.sceneGL );
@@ -60,10 +75,10 @@ var POP = function(params) {
             planes.forEach(function(item){
                 that.three.sceneGL.remove(item);
             });
-        }
+        };
 
         that.elements.forEach(function(element, i){
-            var copy = element.element.cloneNode(true);;
+            var copy = element.element.cloneNode(true);
             var style = copy.getAttribute('style');
 
             var x = copy.getAttribute('x'),
@@ -87,9 +102,6 @@ var POP = function(params) {
           }).then(function(canvas){
                 var texture = new THREE.Texture(canvas);
                 texture.needsUpdate = true;
-
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.repeat.x = - 1;
 
                 var geometry = new THREE.PlaneGeometry( W, H );
                 var material = new THREE.MeshBasicMaterial( { map: texture, side: THREE.DoubleSide, transparent: true, alphaTest: 0.5 } );
@@ -119,6 +131,32 @@ var POP = function(params) {
         // -- Setting up the camera -- //
         that.three.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000000);
         that.three.camera.position.z = 1;
+
+        var light;
+
+        light = new THREE.DirectionalLight(0xffffff, 4);
+        light.position.set(0, 800, 0);
+
+        light.castShadow = true;
+
+        light.shadow.mapSize.width = 2024;
+        light.shadow.mapSize.height = 2024;
+
+        var d = 200;
+
+        light.shadow.camera.left = -d;
+        light.shadow.camera.right = d;
+        light.shadow.camera.top = d;
+        light.shadow.camera.bottom = -d;
+
+        light.shadow.camera.far = 2000;
+
+        that.three.sceneGL.add(light);
+        that.three.dlight = light;
+
+        ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        that.three.sceneGL.add(ambient);
+        that.three.alight = ambient;
 
         // -- Defining the WebGL and CSS3D Renderers -- //
         var rendererCSS = null;
@@ -161,6 +199,9 @@ var POP = function(params) {
             that.three.controls.zoomSpeed = 0;
             that.three.controls.enablePan = false;
         }
+
+        // -- Adding a method to the string class -- //
+        that.utils.hasFormat();
 
         that.addPopElements();
         that.attachingTheEvents();
@@ -235,6 +276,20 @@ var POP = function(params) {
                 item.visible = item.frameHolder.visible = item.world.visible = false;
             }
         });
+    };
+    that.fileExists = function(url, cb) {
+        var xmlhttp;
+        // compatible with IE7+, Firefox, Chrome, Opera, Safari
+        xmlhttp = new XMLHttpRequest();
+        xmlhttp.open("GET", url, true);
+        xmlhttp.send();
+        xmlhttp.onreadystatechange = function (oEvent) {
+            if (xmlhttp.readyState === 4) {
+                if (xmlhttp.status === 200) {
+                   cb();
+                }
+            }
+        };
     };
     that.addPopElements = function(cb) {
         var popElements = document.querySelectorAll('.pop-element');
@@ -330,6 +385,16 @@ var POP = function(params) {
     };
     that.animate = function() {
         requestAnimationFrame(that.animate);
+
+        that.objects.forEach(function(obj) {
+            var worldNumber = obj.options.world;
+
+            if(worldNumber != that.selectedWorld()) {
+                obj.visible = false;
+            } else {
+                obj.visible = true;
+            }
+        });
 
         that.three.rendererGL.render(that.three.sceneGL, that.three.camera);
         that.three.rendererCSS.render(that.three.sceneCSS, that.three.camera);
